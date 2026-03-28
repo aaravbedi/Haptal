@@ -1,4 +1,6 @@
 node_modules/
 dist/
+dist-inline/
+haptal-standalone.html
 .DS_Store
 *.log
