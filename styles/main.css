@@ -1,0 +1,506 @@
+/* ===== Haptal — Sim-to-Real Platform ===== */
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1a2235;
+  --bg-card: #1e293b;
+  --border: #2d3a4f;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-glow: rgba(59, 130, 246, 0.3);
+  --green: #22c55e;
+  --green-dim: rgba(34, 197, 94, 0.15);
+  --orange: #f59e0b;
+  --orange-dim: rgba(245, 158, 11, 0.15);
+  --red: #ef4444;
+  --red-dim: rgba(239, 68, 68, 0.15);
+  --purple: #a855f7;
+  --cyan: #06b6d4;
+  --sidebar-width: 320px;
+  --topbar-height: 0px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ===== Sidebars ===== */
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.right-sidebar {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.sidebar-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--accent);
+}
+
+.sidebar-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+}
+
+.sidebar-header .subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ===== Control Groups ===== */
+.control-group {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.control-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-group-title .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.control-row label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 90px;
+}
+
+.control-row .value-display {
+  font-size: 11px;
+  color: var(--accent);
+  min-width: 55px;
+  text-align: right;
+  font-weight: 600;
+}
+
+/* ===== Range Sliders ===== */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-primary);
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+/* ===== Select Dropdowns ===== */
+select {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  width: 120px;
+}
+
+select:focus { border-color: var(--accent); }
+
+/* ===== Buttons ===== */
+.btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:hover { border-color: var(--accent); background: var(--bg-card); }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+.btn-primary:hover { background: var(--accent-hover); }
+
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: var(--red-dim); }
+
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+
+/* ===== Viewport ===== */
+#viewport {
+  flex: 1;
+  position: relative;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+#render-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ===== Sim Controls Bar ===== */
+#sim-controls-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(17, 24, 39, 0.92);
+  backdrop-filter: blur(12px);
+  padding: 10px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  z-index: 10;
+}
+
+#sim-controls-bar .btn { border-radius: 8px; }
+
+.speed-indicator {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green);
+  min-width: 50px;
+  text-align: center;
+}
+
+.time-display {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 100px;
+  text-align: center;
+}
+
+/* ===== Stats Overlay ===== */
+#stats-overlay {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  gap: 10px;
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+.stat-badge {
+  background: rgba(17, 24, 39, 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-badge .stat-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+.stat-badge .stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-badge.accent .stat-value { color: var(--accent); }
+.stat-badge.green .stat-value { color: var(--green); }
+.stat-badge.orange .stat-value { color: var(--orange); }
+.stat-badge.purple .stat-value { color: var(--purple); }
+.stat-badge.cyan .stat-value { color: var(--cyan); }
+
+/* ===== Dataset Browser ===== */
+.taxonomy-tree {
+  padding: 12px 16px;
+}
+
+.taxonomy-node {
+  margin-bottom: 2px;
+}
+
+.taxonomy-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 12px;
+}
+
+.taxonomy-header:hover { background: var(--bg-tertiary); }
+
+.taxonomy-header .expand-icon {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 14px;
+  transition: transform 0.2s;
+}
+
+.taxonomy-header .expand-icon.expanded { transform: rotate(90deg); }
+
+.taxonomy-header .node-icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+}
+
+.taxonomy-header .node-name {
+  flex: 1;
+  color: var(--text-secondary);
+}
+
+.taxonomy-header .node-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.taxonomy-header.active .node-name { color: var(--accent); font-weight: 600; }
+
+.taxonomy-children {
+  margin-left: 22px;
+  display: none;
+}
+
+.taxonomy-children.open { display: block; }
+
+.taxonomy-leaf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.taxonomy-leaf:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.taxonomy-leaf.selected {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+}
+
+.taxonomy-leaf .leaf-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.taxonomy-leaf.selected .leaf-dot { background: var(--accent); }
+
+.taxonomy-leaf .leaf-props {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* ===== Data Stats Panel ===== */
+#data-stats {
+  border-top: 1px solid var(--border);
+  padding: 16px 20px;
+  margin-top: auto;
+}
+
+.data-stats-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.data-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.data-stat-row .label { color: var(--text-secondary); }
+.data-stat-row .value { color: var(--text-primary); font-weight: 600; }
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-primary);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--cyan));
+  transition: width 0.3s;
+}
+
+/* ===== Object Selector ===== */
+.object-selector {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.object-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.object-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.object-card:hover { border-color: var(--accent); }
+.object-card.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.08); }
+
+.object-card .obj-icon { font-size: 22px; margin-bottom: 4px; }
+.object-card .obj-name { font-size: 10px; color: var(--text-secondary); }
+.object-card.selected .obj-name { color: var(--accent); }
+
+/* ===== Embedding Viz ===== */
+.embedding-preview {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.embedding-vector {
+  display: flex;
+  gap: 1px;
+  height: 32px;
+  align-items: flex-end;
+  margin-top: 8px;
+}
+
+.embedding-bar {
+  flex: 1;
+  background: var(--accent);
+  border-radius: 1px 1px 0 0;
+  opacity: 0.7;
+  min-width: 2px;
+  transition: height 0.2s;
+}
+
+/* ===== Scrollbar ===== */
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1200px) {
+  :root { --sidebar-width: 280px; }
+}
