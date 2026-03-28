@@ -2,5 +2,6 @@ node_modules/
 dist/
 dist-inline/
 haptal-standalone.html
+.vite/
 .DS_Store
 *.log
