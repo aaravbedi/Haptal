@@ -131,6 +131,12 @@ export class SimulationEngine {
    */
   startTask() {
     if (!this.currentObjectDef) return;
+
+    // Snapshot the current object position as the grab target
+    const objPos = this.env.getObjectPosition();
+    this._grabPos = { x: objPos.x, y: objPos.y, z: objPos.z };
+    this._placePos = { x: -0.2, y: 0, z: 0.1 };
+
     this.taskState = 'reaching';
     this.taskProgress = 0;
     this.robot.joints.gripperOpen = 1.0;
@@ -214,31 +220,62 @@ export class SimulationEngine {
   }
 
   /**
-   * Task state machine: controls the robot through pick-and-place cycles
+   * Smooth easing function (ease-in-out cubic)
+   */
+  _ease(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  /**
+   * Task state machine: controls the robot through pick-and-place cycles.
+   * Uses smooth joint interpolation via lerpJoints for natural motion.
    */
   _updateTask(dt) {
     if (this.taskState === 'idle') return;
 
-    const speed = this.taskSpeed * 1.5;
+    const speed = this.taskSpeed * 1.2;
     this.taskProgress += dt * speed;
 
-    const objPos = this.env.getObjectPosition();
     const tableH = this.env.tableHeight;
+    // Smoothing factor — higher = snappier, lower = smoother
+    const smoothing = Math.min(1, dt * 8);
 
     switch (this.taskState) {
       case 'reaching': {
-        // Move arm toward object
-        const t = Math.min(1, this.taskProgress);
-        const targetY = objPos.y + 0.02;
-        const target = {
-          x: objPos.x,
-          y: targetY + (1 - t) * 0.15,
-          z: objPos.z,
-        };
-        this.robot.solveIK(target, tableH);
-        this.robot.joints.gripperOpen = 1.0;
+        // Phase 1: move above the object, then descend
+        const t = this._ease(Math.min(1, this.taskProgress));
 
-        if (t >= 1) {
+        // Use the stored grab position (set when task starts)
+        const gx = this._grabPos.x;
+        const gz = this._grabPos.z;
+        const aboveY = tableH + 0.18; // hover height
+        const grabY = tableH + 0.06;  // grasp height (just above object)
+
+        let targetPos;
+        if (t < 0.6) {
+          // Move to above the object
+          const t2 = t / 0.6;
+          targetPos = {
+            x: gx * t2,
+            y: aboveY + (1 - t2) * 0.1,
+            z: gz * t2,
+          };
+        } else {
+          // Descend toward the object
+          const t2 = (t - 0.6) / 0.4;
+          targetPos = {
+            x: gx,
+            y: aboveY + (grabY - aboveY) * t2,
+            z: gz,
+          };
+        }
+
+        const ik = this.robot.computeIK(targetPos, tableH);
+        if (ik) this.robot.lerpJoints(ik, smoothing);
+        this.robot.joints.gripperOpen = 1.0;
+        this.robot.updateJoints();
+
+        if (this.taskProgress >= 1) {
           this.taskState = 'grasping';
           this.taskProgress = 0;
         }
@@ -246,22 +283,24 @@ export class SimulationEngine {
       }
 
       case 'grasping': {
-        // Close gripper
-        const t = Math.min(1, this.taskProgress * 2);
-        this.robot.joints.gripperOpen = 1.0 - t;
-        this.robot.solveIK(
-          { x: objPos.x, y: objPos.y + 0.02, z: objPos.z },
+        // Close gripper around the object
+        const t = Math.min(1, this.taskProgress * 2.5);
+        this.robot.joints.gripperOpen = 1.0 - t * 0.95;
+
+        // Hold position at grab point
+        const ik = this.robot.computeIK(
+          { x: this._grabPos.x, y: tableH + 0.06, z: this._grabPos.z },
           tableH
         );
+        if (ik) this.robot.lerpJoints(ik, smoothing);
+        this.robot.updateJoints();
 
         if (t >= 1) {
           this.robot.isGripping = true;
 
           // Check grip reliability from co-sim
           if (this.coSimProperties) {
-            const roll = Math.random();
-            if (roll > this.coSimProperties.gripReliability) {
-              // Grip failed! Object slips
+            if (Math.random() > this.coSimProperties.gripReliability) {
               this.robot.isGripping = false;
               this.robot.joints.gripperOpen = 0.8;
               this.taskState = 'reaching';
@@ -277,19 +316,21 @@ export class SimulationEngine {
       }
 
       case 'lifting': {
-        // Lift object upward
-        const t = Math.min(1, this.taskProgress);
-        const liftHeight = 0.15;
-        this.robot.solveIK(
+        // Lift straight up from the grab position
+        const t = this._ease(Math.min(1, this.taskProgress));
+        const liftHeight = 0.16;
+        const ik = this.robot.computeIK(
           {
-            x: objPos.x,
-            y: tableH + 0.05 + t * liftHeight,
-            z: objPos.z,
+            x: this._grabPos.x,
+            y: tableH + 0.06 + t * liftHeight,
+            z: this._grabPos.z,
           },
           tableH
         );
+        if (ik) this.robot.lerpJoints(ik, smoothing);
+        this.robot.updateJoints();
 
-        if (t >= 1) {
+        if (this.taskProgress >= 1) {
           this.taskState = 'moving';
           this.taskProgress = 0;
         }
@@ -297,22 +338,26 @@ export class SimulationEngine {
       }
 
       case 'moving': {
-        // Move to target position
-        const t = Math.min(1, this.taskProgress);
-        const startX = this.objectStartPos.x;
-        const endX = this.objectTargetPos.x;
-        const moveHeight = tableH + 0.2;
+        // Arc motion from grab position to place position
+        const t = this._ease(Math.min(1, this.taskProgress));
+        const startX = this._grabPos.x;
+        const startZ = this._grabPos.z;
+        const endX = this._placePos.x;
+        const endZ = this._placePos.z;
+        const arcHeight = tableH + 0.24;
 
-        this.robot.solveIK(
+        const ik = this.robot.computeIK(
           {
             x: startX + (endX - startX) * t,
-            y: moveHeight + Math.sin(t * Math.PI) * 0.05,
-            z: 0,
+            y: arcHeight + Math.sin(t * Math.PI) * 0.06,
+            z: startZ + (endZ - startZ) * t,
           },
           tableH
         );
+        if (ik) this.robot.lerpJoints(ik, smoothing);
+        this.robot.updateJoints();
 
-        if (t >= 1) {
+        if (this.taskProgress >= 1) {
           this.taskState = 'placing';
           this.taskProgress = 0;
         }
@@ -320,18 +365,20 @@ export class SimulationEngine {
       }
 
       case 'placing': {
-        // Lower to place position
-        const t = Math.min(1, this.taskProgress);
-        this.robot.solveIK(
+        // Lower to the place position
+        const t = this._ease(Math.min(1, this.taskProgress));
+        const ik = this.robot.computeIK(
           {
-            x: this.objectTargetPos.x,
-            y: tableH + 0.2 - t * 0.12,
-            z: 0,
+            x: this._placePos.x,
+            y: tableH + 0.24 - t * 0.16,
+            z: this._placePos.z,
           },
           tableH
         );
+        if (ik) this.robot.lerpJoints(ik, smoothing);
+        this.robot.updateJoints();
 
-        if (t >= 1) {
+        if (this.taskProgress >= 1) {
           this.taskState = 'releasing';
           this.taskProgress = 0;
         }
@@ -340,11 +387,12 @@ export class SimulationEngine {
 
       case 'releasing': {
         // Open gripper
-        const t = Math.min(1, this.taskProgress * 2);
-        this.robot.joints.gripperOpen = t;
+        const t = Math.min(1, this.taskProgress * 2.5);
+        this.robot.joints.gripperOpen = 0.05 + t * 0.95;
         if (t >= 0.3) {
           this.robot.isGripping = false;
         }
+        this.robot.updateJoints();
 
         if (t >= 1) {
           this.taskState = 'returning';
@@ -354,19 +402,33 @@ export class SimulationEngine {
       }
 
       case 'returning': {
-        // Return to home position
-        const t = Math.min(1, this.taskProgress);
-        this.robot.solveIK(
-          {
-            x: 0,
-            y: tableH + 0.3,
-            z: 0,
-          },
-          tableH
-        );
-        this.robot.joints.gripperOpen = 0.5;
+        // Smooth return to upright home position
+        const t = this._ease(Math.min(1, this.taskProgress));
 
-        if (t >= 1) {
+        // First lift up, then move to center
+        let targetPos;
+        if (t < 0.4) {
+          const t2 = t / 0.4;
+          targetPos = {
+            x: this._placePos.x * (1 - t2),
+            y: tableH + 0.10 + t2 * 0.16,
+            z: this._placePos.z * (1 - t2),
+          };
+        } else {
+          const t2 = (t - 0.4) / 0.6;
+          targetPos = {
+            x: 0.12 * (1 - t2),
+            y: tableH + 0.26 - t2 * 0.02,
+            z: 0,
+          };
+        }
+
+        const ik = this.robot.computeIK(targetPos, tableH);
+        if (ik) this.robot.lerpJoints(ik, smoothing);
+        this.robot.joints.gripperOpen = 0.5;
+        this.robot.updateJoints();
+
+        if (this.taskProgress >= 1) {
           // End trajectory and process
           const trajectory = this.sensor.endTrajectory();
           if (trajectory) {
@@ -391,7 +453,7 @@ export class SimulationEngine {
   }
 
   /**
-   * Reset object to start position for next cycle
+   * Reset object to a new random position and update grab target
    */
   _resetObject() {
     if (this.currentObjectDef) {
@@ -402,6 +464,14 @@ export class SimulationEngine {
       };
       this.physics.spawnObject(this.currentObjectDef, pos);
       this.env.setObjectPosition(pos.x, pos.y, pos.z);
+
+      // Update grab target for next cycle
+      this._grabPos = { x: pos.x, y: pos.y, z: pos.z };
+      this._placePos = {
+        x: -0.18 + (Math.random() - 0.5) * 0.06,
+        y: 0,
+        z: 0.08 + (Math.random() - 0.5) * 0.06,
+      };
     }
   }
 

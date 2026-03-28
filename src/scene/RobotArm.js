@@ -231,49 +231,91 @@ export class RobotArm {
   }
 
   /**
-   * Set target position and compute IK (simplified analytical).
-   * Returns true if reachable.
+   * Compute IK target joint angles WITHOUT applying them.
+   * Returns { base, shoulder, elbow, wristPitch } or null if unreachable.
+   *
+   * Conventions (Three.js Z-rotation on a +Y-pointing arm):
+   *   shoulder_z = θ1 - π/2    (θ1 = shoulder angle from horizontal)
+   *   elbow_z    = θ2           (θ2 = elbow bend, negative = elbow-down)
+   *   wrist_z    = -θ1 - θ2 - π/2   (keeps gripper pointing straight down)
+   */
+  computeIK(targetPos, tableHeight) {
+    const C = ARM_CONFIG;
+    const L1 = C.upperArmLength;
+    const L2 = C.lowerArmLength + C.gripperLength * 0.6;
+
+    // Shoulder pivot in world space
+    const shoulderY = tableHeight + C.baseHeight + C.shoulderHeight;
+
+    // Base rotation (Y-axis) — point arm toward target in XZ plane
+    const base = Math.atan2(targetPos.z, targetPos.x);
+
+    // Target in the arm's 2D plane (horizontal r, vertical y), relative to shoulder
+    const r = Math.sqrt(targetPos.x * targetPos.x + targetPos.z * targetPos.z);
+    const y = targetPos.y - shoulderY;
+
+    // Distance from shoulder to target
+    const dSq = r * r + y * y;
+    const d = Math.sqrt(dSq);
+
+    // Clamp to reachable workspace
+    const maxReach = L1 + L2 - 0.005;
+    const minReach = Math.abs(L1 - L2) + 0.005;
+    if (d > maxReach || d < minReach) {
+      // Clamp: point straight toward target at max reach
+      const clampD = Math.min(maxReach, Math.max(minReach, d));
+      const scale = clampD / Math.max(d, 0.001);
+      return this.computeIK(
+        { x: targetPos.x * scale, y: shoulderY + y * scale, z: targetPos.z * scale },
+        tableHeight
+      );
+    }
+
+    // Standard 2-link planar IK
+    // Elbow angle (negative = elbow-down, natural reaching configuration)
+    const cosQ2 = (dSq - L1 * L1 - L2 * L2) / (2 * L1 * L2);
+    const q2 = -Math.acos(Math.max(-1, Math.min(1, cosQ2))); // elbow-down
+
+    // Shoulder angle from horizontal
+    const k1 = L1 + L2 * Math.cos(q2);
+    const k2 = L2 * Math.sin(q2);
+    const q1 = Math.atan2(y, r) - Math.atan2(k2, k1);
+
+    // Convert to Three.js Z-rotation angles
+    const shoulder = q1 - Math.PI / 2;
+    const elbow = q2;
+    const wristPitch = -q1 - q2 - Math.PI / 2;
+
+    return { base, shoulder, elbow, wristPitch };
+  }
+
+  /**
+   * Solve IK and apply immediately. Returns true if reachable.
    */
   solveIK(targetPos, tableHeight) {
-    const C = ARM_CONFIG;
-    const totalReach = C.upperArmLength + C.lowerArmLength + C.gripperLength;
-    const baseY = tableHeight + C.baseHeight + C.shoulderHeight;
+    const result = this.computeIK(targetPos, tableHeight);
+    if (!result) return false;
 
-    // Target relative to shoulder
-    const dx = targetPos.x;
-    const dz = targetPos.z;
-    const dy = targetPos.y - baseY;
-
-    // Base rotation
-    this.joints.base = Math.atan2(dz, dx);
-
-    // Distance in shoulder plane
-    const horizontalDist = Math.sqrt(dx * dx + dz * dz);
-    const dist2D = Math.sqrt(horizontalDist * horizontalDist + dy * dy);
-
-    // Clamp to reachable
-    const L1 = C.upperArmLength;
-    const L2 = C.lowerArmLength + C.gripperLength * 0.5;
-    const reach = Math.min(dist2D, L1 + L2 - 0.01);
-
-    if (reach < Math.abs(L1 - L2) + 0.01) return false;
-
-    // Two-link IK
-    const cosElbow = (L1 * L1 + L2 * L2 - reach * reach) / (2 * L1 * L2);
-    const elbowAngle = Math.acos(Math.max(-1, Math.min(1, cosElbow)));
-
-    const cosAlpha = (L1 * L1 + reach * reach - L2 * L2) / (2 * L1 * reach);
-    const alpha = Math.acos(Math.max(-1, Math.min(1, cosAlpha)));
-    const gamma = Math.atan2(dy, horizontalDist);
-
-    this.joints.shoulder = -(gamma + alpha);
-    this.joints.elbow = Math.PI - elbowAngle;
-
-    // Keep gripper pointing down
-    this.joints.wristPitch = -(this.joints.shoulder + this.joints.elbow) - Math.PI / 2;
-
+    this.joints.base = result.base;
+    this.joints.shoulder = result.shoulder;
+    this.joints.elbow = result.elbow;
+    this.joints.wristPitch = result.wristPitch;
     this.updateJoints();
     return true;
+  }
+
+  /**
+   * Smoothly interpolate current joints toward target joints.
+   * @param {object} target - { base, shoulder, elbow, wristPitch }
+   * @param {number} alpha - interpolation factor (0-1), higher = faster
+   */
+  lerpJoints(target, alpha) {
+    const a = Math.min(1, Math.max(0, alpha));
+    this.joints.base += (target.base - this.joints.base) * a;
+    this.joints.shoulder += (target.shoulder - this.joints.shoulder) * a;
+    this.joints.elbow += (target.elbow - this.joints.elbow) * a;
+    this.joints.wristPitch += (target.wristPitch - this.joints.wristPitch) * a;
+    this.updateJoints();
   }
 
   /**
