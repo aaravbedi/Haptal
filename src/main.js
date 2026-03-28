@@ -15,6 +15,7 @@
  *   ControlPanel (UI) + SimControls (UI) + StatsDisplay (UI)
  */
 
+import * as THREE from 'three';
 import { SceneManager } from './scene/SceneManager.js';
 import { RobotArm } from './scene/RobotArm.js';
 import { Environment } from './scene/Environment.js';
@@ -116,6 +117,34 @@ class HaptalApp {
 
     this.controlPanel.onObjectSelected = selectObject;
     this.datasetBrowser.onObjectSelected = selectObject;
+
+    // === Wire up environment preset selection ===
+    this.controlPanel.onPresetSelected = (presetId) => {
+      const preset = this.env.loadPreset(presetId);
+      if (preset) {
+        // Re-place robot on the new table
+        this.robot.group.position.set(0, preset.tableHeight, 0);
+        this.sim.objectStartPos.y = preset.tableHeight + 0.015;
+
+        // Update scene lighting to match preset
+        this.scene.updateEnvironment({
+          ambientIntensity: preset.ambient,
+        });
+        this.scene.scene.background = new THREE.Color(preset.fogColor);
+
+        // Reload current object on new table
+        if (this.sim.currentObjectDef) {
+          this.sim.loadObject(this.sim.currentObjectDef);
+          this.sim.startTask();
+        }
+      }
+    };
+
+    // === Wire up robot dragging ===
+    this.scene.onRobotDragged = (x, z) => {
+      this.robot.group.position.x = x;
+      this.robot.group.position.z = z;
+    };
 
     // === Start UI refresh loop ===
     this._startUIRefresh();

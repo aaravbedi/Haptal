@@ -1,9 +1,11 @@
 /**
  * Control Panel UI
  *
- * Left sidebar with environment parameter controls.
- * Each slider/control maps to a co-sim bridge parameter.
+ * Left sidebar with environment preset selector, physics controls,
+ * and object selector.
  */
+
+import { PRESETS } from '../scene/Environment.js';
 
 export class ControlPanel {
   constructor(container, coSimBridge, sceneManager, physicsWorld, simulationEngine) {
@@ -13,12 +15,19 @@ export class ControlPanel {
     this.physics = physicsWorld;
     this.sim = simulationEngine;
     this.onObjectSelected = null;  // callback
+    this.onPresetSelected = null;  // callback
 
     this._build();
   }
 
   _build() {
     this.container.innerHTML = '';
+
+    // === Environment Preset Selector ===
+    this._addPresetSelector();
+
+    // === Robot Position Note ===
+    this._addRobotDragNote();
 
     // === Lighting Group ===
     this._addGroup('Lighting', [
@@ -47,6 +56,47 @@ export class ControlPanel {
 
     // === Object Selector ===
     this._addObjectSelector();
+  }
+
+  _addPresetSelector() {
+    const group = document.createElement('div');
+    group.className = 'control-group';
+
+    const header = document.createElement('div');
+    header.className = 'control-group-title';
+    header.innerHTML = '<span class="dot"></span>Environment Preset';
+    group.appendChild(header);
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;';
+
+    for (const [id, preset] of Object.entries(PRESETS)) {
+      const card = document.createElement('div');
+      card.className = 'object-card' + (id === 'lab' ? ' selected' : '');
+      card.innerHTML = `<div class="obj-icon">${preset.icon}</div><div class="obj-name">${preset.name}</div>`;
+      card.addEventListener('click', () => {
+        grid.querySelectorAll('.object-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        if (this.onPresetSelected) this.onPresetSelected(id);
+      });
+      grid.appendChild(card);
+    }
+
+    group.appendChild(grid);
+    this.container.appendChild(group);
+  }
+
+  _addRobotDragNote() {
+    const note = document.createElement('div');
+    note.className = 'control-group';
+    note.style.padding = '10px 20px';
+    note.innerHTML = `
+      <div style="font-size:10px;color:var(--text-muted);line-height:1.5;">
+        <span style="color:var(--accent);font-weight:600;">SHIFT+DRAG</span> or
+        <span style="color:var(--accent);font-weight:600;">RIGHT-CLICK DRAG</span>
+        on viewport to reposition robot arm
+      </div>`;
+    this.container.appendChild(note);
   }
 
   _addGroup(title, controls) {

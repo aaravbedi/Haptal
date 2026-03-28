@@ -59,19 +59,49 @@ export class SceneManager {
     this._isDragging = false;
     this._lastMouse = { x: 0, y: 0 };
 
+    // Drag modes: left-click = orbit, right-click / shift+click = move robot
+    this._dragMode = null; // 'orbit' | 'robot'
+    this._raycaster = new THREE.Raycaster();
+    this._mouse = new THREE.Vector2();
+    this._groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    this.onRobotDragged = null; // callback(x, z)
+
     this.canvas.addEventListener('mousedown', (e) => {
+      if (e.shiftKey || e.button === 2) {
+        this._dragMode = 'robot';
+      } else {
+        this._dragMode = 'orbit';
+      }
       this._isDragging = true;
       this._lastMouse = { x: e.clientX, y: e.clientY };
     });
-    window.addEventListener('mouseup', () => { this._isDragging = false; });
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('mouseup', () => { this._isDragging = false; this._dragMode = null; });
     window.addEventListener('mousemove', (e) => {
       if (!this._isDragging) return;
       const dx = e.clientX - this._lastMouse.x;
       const dy = e.clientY - this._lastMouse.y;
-      this._orbitAngle += dx * 0.005;
-      this._orbitY = Math.max(0.3, Math.min(3.0, this._orbitY + dy * 0.005));
-      this._lastMouse = { x: e.clientX, y: e.clientY };
-      this._updateCameraOrbit();
+
+      if (this._dragMode === 'orbit') {
+        this._orbitAngle += dx * 0.005;
+        this._orbitY = Math.max(0.3, Math.min(3.0, this._orbitY + dy * 0.005));
+        this._lastMouse = { x: e.clientX, y: e.clientY };
+        this._updateCameraOrbit();
+      } else if (this._dragMode === 'robot') {
+        // Raycast to ground plane to get world position
+        const rect = this.canvas.getBoundingClientRect();
+        this._mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        this._mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        this._raycaster.setFromCamera(this._mouse, this.camera);
+        const hit = new THREE.Vector3();
+        this._raycaster.ray.intersectPlane(this._groundPlane, hit);
+        if (hit && this.onRobotDragged) {
+          // Clamp to reasonable bounds
+          const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+          this.onRobotDragged(clamp(hit.x, -2, 2), clamp(hit.z, -2, 2));
+        }
+        this._lastMouse = { x: e.clientX, y: e.clientY };
+      }
     });
     this.canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
